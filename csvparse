@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV Parser & Firestore Upload</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-app.js";
+        import { getFirestore, doc, writeBatch } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyABcd8PIcjwIvDqFaLlNHpb8j-TE2Hi9YA",
+            authDomain: "thanbeeh-e61d9.firebaseapp.com",
+            projectId: "thanbeeh-e61d9",
+            storageBucket: "thanbeeh-e61d9.appspot.com",
+            messagingSenderId: "1072993385928",
+            appId: "1:1072993385928:web:7279146f96c0410dd5d4fd",
+            measurementId: "G-N00QZBX79E"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        document.addEventListener("DOMContentLoaded", () => {
+            let selectedFile = null;
+            let parsedData = {}; 
+
+            const csvFileInput = document.getElementById('csvFileInput');
+            const parseButton = document.getElementById('parseButton');
+            const saveButton = document.getElementById('saveButton');
+            const messageDiv = document.getElementById('message');
+            const tableBody = document.querySelector('#csvTable tbody');
+
+            csvFileInput.addEventListener('change', function(event) {
+                selectedFile = event.target.files[0];
+            });
+
+            parseButton.addEventListener('click', function () {
+    messageDiv.textContent = '';
+    tableBody.innerHTML = ''; // Clear previous data
+    saveButton.style.display = 'none'; // Hide save button initially
+
+    if (!selectedFile) {
+        messageDiv.textContent = '❌ Please select a CSV file first.';
+        return;
+    }
+
+    if (selectedFile.type !== 'text/csv') {
+        messageDiv.textContent = '❌ Please select a valid CSV file.';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        const text = e.target.result;
+        const rows = text.split('\n').filter(row => row.trim() !== ''); // Remove empty lines
+
+        if (rows.length === 0) {
+            messageDiv.textContent = '❌ The CSV file is empty.';
+            return;
+        }
+
+        parsedData = {}; // Reset parsed data
+        let validRowFound = false;
+
+        rows.forEach((row, index) => {
+            const columns = row.split(',').map(col => col.trim());
+
+            if (columns.length !== 7) {
+                messageDiv.textContent = `❌ Error in row ${index + 1}: Expected 7 columns but found ${columns.length}`;
+                tableBody.innerHTML = '';
+                return;
+            }
+
+            const [adnumber, name, studentClass, division, subject, maxMark, obtMark] = columns;
+
+            // **Skip rows where the first column (Ad Number) is empty**
+            if (!adnumber) {
+                return;
+            }
+
+            validRowFound = true; // Mark that at least one valid row was found
+
+            // Grouping subjects under each student
+            if (!parsedData[adnumber]) {
+                parsedData[adnumber] = {
+                    adnumber,
+                    name,
+                    class: studentClass,
+                    division,
+                    subjects: []
+                };
+            }
+
+            parsedData[adnumber].subjects.push({
+                subject,
+                maxMark,
+                obtMark
+            });
+
+            // Add row to table
+            const tr = document.createElement('tr');
+            columns.forEach(col => {
+                const td = document.createElement('td');
+                td.textContent = col;
+                tr.appendChild(td);
+            });
+            tableBody.appendChild(tr);
+        });
+
+        // Show an error if no valid rows are found
+        if (!validRowFound) {
+            messageDiv.textContent = '❌ No valid data found! Ensure the first column (Ad Number) is filled.';
+            return;
+        }
+
+        // Show save button if data is parsed successfully
+        if (Object.keys(parsedData).length > 0) {
+            saveButton.style.display = 'block';
+        }
+    };
+
+    reader.onerror = function () {
+        messageDiv.textContent = '❌ Error reading the file. Please try again.';
+    };
+
+    try {
+        reader.readAsText(selectedFile);
+    } catch (error) {
+        messageDiv.textContent = '❌ An error occurred while processing the file.';
+        console.error('File processing error:', error);
+    }
+});
+
+            saveButton.addEventListener('click', async function () {
+                if (Object.keys(parsedData).length === 0) {
+                    alert("❌ No data to save. Please parse a CSV file first.");
+                    return;
+                }
+
+                if (!confirm("⚠ Are you sure you want to upload this data to Firestore?")) {
+                    return;
+                }
+
+                try {
+                    const students = Object.entries(parsedData);
+                    let batchCount = 0;
+                    let batch = writeBatch(db);
+
+                    for (let i = 0; i < students.length; i++) {
+                        const [adnumber, studentData] = students[i];
+                        const studentRef = doc(db, "studentMarks", adnumber);
+                        batch.set(studentRef, studentData);
+                        batchCount++;
+
+                        if (batchCount >= 500 || i === students.length - 1) {
+                            await batch.commit();
+                            batch = writeBatch(db);
+                            batchCount = 0;
+                        }
+                    }
+
+                    alert("✅ Data successfully uploaded to Firestore!");
+                    saveButton.style.display = 'none';
+                } catch (error) {
+                    console.error("❌ Firestore Error:", error);
+                    alert("❌ Failed to upload data. Check console for details.");
+                }
+            });
+        });
+    </script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        #message {
+            color: red;
+            margin: 10px 0;
+        }
+        #saveButton {
+            display: none;
+            margin-top: 10px;
+            padding: 10px 15px;
+            background: green;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <h1>CSV to Firestore Uploader</h1>
+    <input type="file" id="csvFileInput" accept=".csv">
+    <button id="parseButton">Parse CSV</button>
+    <div id="message"></div>
+    <table id="csvTable">
+        <thead>
+            <tr>
+                <th>Ad Number</th>
+                <th>Name</th>
+                <th>Class</th>
+                <th>Division</th>
+                <th>Subject</th>
+                <th>Max Mark</th>
+                <th>Obtained Mark</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <button id="saveButton">Save to Database</button>
+</body>
+</html>
