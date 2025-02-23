@@ -8,9 +8,9 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-app.js";
         import { getFirestore, doc, writeBatch } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-firestore.js";
-
+            const asthalavistha= "AIzaSyABcd8PIcjwIvDqFaLlNHpb8j-TE2Hi9YA";
         const firebaseConfig = {
-            apiKey: "AIzaSyABcd8PIcjwIvDqFaLlNHpb8j-TE2Hi9YA",
+            apiKey: asthalavistha,
             authDomain: "thanbeeh-e61d9.firebaseapp.com",
             projectId: "thanbeeh-e61d9",
             storageBucket: "thanbeeh-e61d9.appspot.com",
