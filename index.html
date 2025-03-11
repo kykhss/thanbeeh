@@ -247,7 +247,16 @@ margin:auto;
         <h2 style="color:red">Annual Examination Result</h2>
         <input type="text" id="searchAdnumber" placeholder="Enter AD Number">
         <input type="text" id="searchClass" placeholder="Enter Class">
-        <input type="text" id="searchDivision" placeholder="Enter Division">
+                    <input type="text" id="searchDivision" placeholder="Enter Division" onchange="capitalizeDivision()">
+
+<script>
+function capitalizeDivision() {
+  const input = document.getElementById("searchDivision");
+  if (input) {
+    input.value = input.value.toUpperCase();
+  }
+}
+</script>
         <button id="searchBtn">Get Result</button>
     </div>
        <div >
